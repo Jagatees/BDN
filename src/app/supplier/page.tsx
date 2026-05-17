@@ -10,6 +10,13 @@ import InventoryTable from '@/components/InventoryTable'
 import AddInventoryForm from '@/components/AddInventoryForm'
 import IncomingTicketCard from '@/components/IncomingTicketCard'
 import { getStockLevel, STOCK_LEVEL_ORDER } from '@/lib/utils'
+import {
+  getDemoIncomingTickets,
+  getDemoProfile,
+  getDemoSupplierInventory,
+  getDemoUser,
+  shouldUseDemoMode,
+} from '@/lib/demo-data'
 import type { InventoryItem, CallReport, Profile } from '@/types'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
@@ -24,8 +31,14 @@ export default function SupplierPage() {
   const [incomingCalls, setIncomingCalls] = useState<IncomingTicket[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
   const [loading, setLoading] = useState(true)
+  const demoMode = shouldUseDemoMode()
 
   const fetchInventory = useCallback(async () => {
+    if (shouldUseDemoMode()) {
+      setItems(getDemoSupplierInventory())
+      return
+    }
+
     const res = await fetch('/api/inventory')
     if (res.ok) {
       const data = await res.json() as { items: InventoryItem[] }
@@ -34,6 +47,11 @@ export default function SupplierPage() {
   }, [])
 
   const fetchIncomingCalls = useCallback(async () => {
+    if (shouldUseDemoMode()) {
+      setIncomingCalls(getDemoIncomingTickets())
+      return
+    }
+
     const res = await fetch('/api/incoming-calls')
     if (res.ok) {
       const data = await res.json() as { tickets: IncomingTicket[] }
@@ -42,6 +60,15 @@ export default function SupplierPage() {
   }, [])
 
   useEffect(() => {
+    if (shouldUseDemoMode()) {
+      setUser(getDemoUser())
+      setProfile(getDemoProfile())
+      setItems(getDemoSupplierInventory())
+      setIncomingCalls(getDemoIncomingTickets())
+      setLoading(false)
+      return
+    }
+
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user: u } }) => {
       if (!u) { router.push('/auth/login'); return }
@@ -54,6 +81,11 @@ export default function SupplierPage() {
   }, [router, fetchInventory, fetchIncomingCalls])
 
   async function handleUpdate(id: string, quantity: number, unitPrice: number | null) {
+    if (demoMode) {
+      setItems(prev => prev.map(item => item.id === id ? { ...item, quantity, unitPrice, updatedAt: new Date().toISOString() } : item))
+      return
+    }
+
     await fetch('/api/inventory', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -63,6 +95,11 @@ export default function SupplierPage() {
   }
 
   async function handleDelete(id: string) {
+    if (demoMode) {
+      setItems(prev => prev.filter(i => i.id !== id))
+      return
+    }
+
     await fetch('/api/inventory', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -133,6 +170,7 @@ export default function SupplierPage() {
             <AddInventoryForm
               onAdded={handleAdded}
               onClose={() => setShowAddForm(false)}
+              demoMode={demoMode}
             />
           )}
 

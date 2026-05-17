@@ -8,18 +8,87 @@ import ReportCard from '@/components/ReportCard'
 import StatusFilter from '@/components/StatusFilter'
 import { mapReport } from '@/lib/utils'
 import type { Profile } from '@/types'
+import type { User } from '@supabase/supabase-js'
+import { getDemoReports } from '@/lib/demo-data'
 
 interface PageProps {
   searchParams: Promise<{ filter?: string }>
 }
 
 export default async function DashboardPage({ searchParams }: PageProps) {
+  const { filter } = await searchParams
+  const useDemoDashboard =
+    process.env.NEXT_PUBLIC_USE_REAL_AUTH !== 'true' ||
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+
+  if (useDemoDashboard) {
+    const user = {
+      id: 'demo-user',
+      email: 'demo@vendorwrangler.app',
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+    } as User
+    const profile: Profile = {
+      id: 'demo-user',
+      role: 'customer',
+      companyName: 'Demo Company',
+      phoneNumber: '+65 6123 4567',
+    }
+    const allReports = getDemoReports()
+    const filteredReports = filter && filter !== 'all'
+      ? allReports.filter(r => r.nextStep === filter)
+      : allReports
+
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <NavBar user={user} profile={profile} />
+
+        <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+          <section className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4">
+            <p className="text-sm font-semibold text-blue-200">Frontend demo dashboard</p>
+            <p className="mt-1 text-sm text-slate-300">
+              This page is using fake local reports so you can click through the flow before Supabase is connected.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-white mb-4">New Call Request</h2>
+            <IntakeForm />
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                Call Reports
+                {allReports.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-slate-400">
+                    ({allReports.length})
+                  </span>
+                )}
+              </h2>
+              <Suspense fallback={<div className="h-9 w-64 bg-slate-900 rounded-lg animate-pulse" />}>
+                <StatusFilter current={filter} />
+              </Suspense>
+            </div>
+
+            <div className="grid gap-4">
+              {filteredReports.map(report => (
+                <ReportCard key={report.id} report={report} />
+              ))}
+            </div>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/auth/login')
-
-  const { filter } = await searchParams
 
   const profileResult = await supabase.from('profiles').select('*').eq('id', user.id).single()
   const profile = profileResult.data as Profile | null

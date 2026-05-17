@@ -2,6 +2,20 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const isAuthRoute = pathname.startsWith('/auth')
+  const isStatic = pathname.startsWith('/_next') || pathname === '/favicon.ico'
+  const publicRoutes = new Set(['/', '/product', '/pricing', '/security', '/contact'])
+  const isPublicRoute = publicRoutes.has(pathname)
+  const hasSupabaseEnv = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  )
+  const useRealAuth = process.env.NEXT_PUBLIC_USE_REAL_AUTH === 'true'
+
+  if (isAuthRoute || isStatic || isPublicRoute || !hasSupabaseEnv || !useRealAuth) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -25,12 +39,7 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-  const isAuthRoute = pathname.startsWith('/auth')
   const isApiRoute = pathname.startsWith('/api')
-  const isStatic = pathname.startsWith('/_next') || pathname === '/favicon.ico'
-
-  if (isStatic) return supabaseResponse
 
   // Unauthenticated — send to login (except auth + api routes)
   if (!user && !isAuthRoute && !isApiRoute) {

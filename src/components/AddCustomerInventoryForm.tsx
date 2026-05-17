@@ -8,9 +8,10 @@ import type { CustomerInventoryItem, SupplierOption } from '@/types'
 interface AddCustomerInventoryFormProps {
   onAdded: (item: CustomerInventoryItem) => void
   onClose: () => void
+  demoMode?: boolean
 }
 
-export default function AddCustomerInventoryForm({ onAdded, onClose }: AddCustomerInventoryFormProps) {
+export default function AddCustomerInventoryForm({ onAdded, onClose, demoMode = false }: AddCustomerInventoryFormProps) {
   const [itemName, setItemName] = useState('')
   const [sku, setSku] = useState('')
   const [category, setCategory] = useState('')
@@ -23,6 +24,12 @@ export default function AddCustomerInventoryForm({ onAdded, onClose }: AddCustom
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (demoMode) {
+      setSuppliers([{ id: 'demo-supplier', companyName: 'BDN Supplier', phoneNumber: '+65 6123 4567' }])
+      setSupplierId('demo-supplier')
+      return
+    }
+
     fetch('/api/suppliers')
       .then(r => r.ok ? r.json() : { suppliers: [] })
       .then((data: { suppliers: SupplierOption[] }) => setSuppliers(data.suppliers ?? []))
@@ -34,6 +41,25 @@ export default function AddCustomerInventoryForm({ onAdded, onClose }: AddCustom
     setLoading(true)
     setError(null)
     try {
+      if (demoMode) {
+        onAdded({
+          id: `demo-customer-item-${Date.now()}`,
+          companyId: 'demo-company',
+          itemName,
+          sku: sku || null,
+          category: category || null,
+          currentQuantity: parseInt(currentQuantity) || 0,
+          restockThreshold: parseInt(restockThreshold) || 10,
+          supplierId: supplierId || null,
+          supplierName: supplierId ? 'BDN Supplier' : null,
+          supplierPhone: supplierId ? '+65 6123 4567' : null,
+          unitCost: unitCost ? parseFloat(unitCost) : null,
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        })
+        return
+      }
+
       const res = await fetch('/api/customer-inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

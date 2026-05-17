@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { PhoneCall, CheckCircle2, X, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import CallStatusMachine from './CallStatusMachine'
+import { addDemoReport, shouldUseDemoMode } from '@/lib/demo-data'
 import type { CustomerInventoryItem, CallStatus, JobSpec, CallOutcomeSummary } from '@/types'
 
 interface RestockFlowState {
@@ -46,6 +47,43 @@ export default function RestockCallButton({ lowStockItems, onRestockComplete }: 
     setFlow({ phase: 'planning', message: 'Claude is generating your restock brief…' })
 
     try {
+      if (shouldUseDemoMode()) {
+        const jobSpec: JobSpec = {
+          vendor: supplierName ?? 'BDN Supplier',
+          objective: `Place a restock order for ${groupItems.map(item => item.itemName).join(', ')}.`,
+          requiredQuestions: ['Confirm availability.', 'Confirm unit pricing.', 'Confirm earliest delivery date.'],
+          escalationGuardrails: ['Escalate if items are unavailable.', 'Escalate if delivery is later than this week.'],
+          echoMitigationPrompt: 'Ignore background echo and continue linearly.',
+        }
+
+        setFlow({ phase: 'queued', message: 'Demo call queued, connecting to supplier...', jobSpec })
+        await delay(700)
+        setFlow(prev => ({ ...prev, phase: 'dialing', message: 'Dialing supplier number...' }))
+        await delay(700)
+        setFlow(prev => ({ ...prev, phase: 'in-progress', message: 'Demo call in progress, AI is confirming stock...' }))
+        await delay(900)
+        setFlow(prev => ({ ...prev, phase: 'extracting', message: 'Processing demo transcript...' }))
+        await delay(500)
+
+        const report = addDemoReport(jobSpec.objective, supplierId ?? 'demo-supplier')
+        setFlow({
+          phase: 'done',
+          message: 'Restock order placed successfully.',
+          jobSpec,
+          reportId: report.id,
+          outcome: {
+            vendorName: report.vendorName,
+            resolutionStatus: report.resolutionStatus,
+            paymentDate: report.paymentDate,
+            confidenceScore: report.confidenceScore,
+            nextStep: report.nextStep,
+          },
+          itemsOrdered: groupItems.map(i => i.itemName),
+        })
+        onRestockComplete?.()
+        return
+      }
+
       const res = await fetch('/api/restock-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,4 +229,8 @@ export default function RestockCallButton({ lowStockItems, onRestockComplete }: 
       </div>
     </div>
   )
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }

@@ -10,9 +10,10 @@ type Mode = 'nl' | 'form'
 interface AddInventoryFormProps {
   onAdded: (item: InventoryItem) => void
   onClose: () => void
+  demoMode?: boolean
 }
 
-export default function AddInventoryForm({ onAdded, onClose }: AddInventoryFormProps) {
+export default function AddInventoryForm({ onAdded, onClose, demoMode = false }: AddInventoryFormProps) {
   const [mode, setMode] = useState<Mode>('nl')
   const [nl, setNl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,6 +34,24 @@ export default function AddInventoryForm({ onAdded, onClose }: AddInventoryFormP
     setLoading(true)
     setError(null)
     try {
+      if (demoMode) {
+        const name = nl.split(' at ')[0]?.replace(/^"|"$/g, '').trim() || 'Demo inventory item'
+        onAdded({
+          id: `demo-supplier-item-${Date.now()}`,
+          supplierId: 'demo-supplier',
+          itemName: name,
+          sku: null,
+          category: 'General',
+          quantity: 100,
+          unitPrice: null,
+          description: nl,
+          minStockAlert: 10,
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        })
+        return
+      }
+
       const res = await fetch('/api/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -53,6 +72,23 @@ export default function AddInventoryForm({ onAdded, onClose }: AddInventoryFormP
     setLoading(true)
     setError(null)
     try {
+      if (demoMode) {
+        onAdded({
+          id: `demo-supplier-item-${Date.now()}`,
+          supplierId: 'demo-supplier',
+          itemName,
+          sku: sku || null,
+          category: category || null,
+          quantity: parseInt(quantity) || 0,
+          unitPrice: unitPrice ? parseFloat(unitPrice) : null,
+          description: description || null,
+          minStockAlert: parseInt(minStock) || 10,
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        })
+        return
+      }
+
       const res = await fetch('/api/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

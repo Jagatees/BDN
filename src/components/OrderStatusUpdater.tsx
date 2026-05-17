@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { shouldUseDemoMode } from '@/lib/demo-data'
 import type { OrderStatus } from '@/types'
 
 interface InsufficientItem {
@@ -44,6 +45,12 @@ export default function OrderStatusUpdater({
     setInsufficientItems([])
 
     try {
+      if (shouldUseDemoMode()) {
+        await new Promise(resolve => setTimeout(resolve, 350))
+        onUpdated?.(nextStatus)
+        return
+      }
+
       const res = await fetch(`/api/call-reports/${reportId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

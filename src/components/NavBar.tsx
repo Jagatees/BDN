@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { Phone, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { signOut } from '@/app/actions'
+import { clearDemoSession, shouldUseDemoMode } from '@/lib/demo-data'
 import type { Profile } from '@/types'
 import type { User } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 
 interface NavBarProps {
   user: User
@@ -13,16 +14,27 @@ interface NavBarProps {
 }
 
 function SignOutButton() {
+  async function handleSignOut() {
+    if (shouldUseDemoMode()) {
+      clearDemoSession()
+      window.location.href = '/auth/login'
+      return
+    }
+
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/auth/login'
+  }
+
   return (
-    <form action={signOut}>
-      <button
-        type="submit"
-        className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition px-2 py-1 rounded-lg hover:bg-slate-800"
-      >
-        <LogOut className="w-4 h-4" />
-        Sign out
-      </button>
-    </form>
+    <button
+      type="button"
+      onClick={handleSignOut}
+      className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition px-2 py-1 rounded-lg hover:bg-slate-800"
+    >
+      <LogOut className="w-4 h-4" />
+      Sign out
+    </button>
   )
 }
 

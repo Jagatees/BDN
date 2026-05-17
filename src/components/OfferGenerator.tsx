@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Sparkles, Megaphone, X, Loader2, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getDemoProfile, getDemoSupplierInventory, shouldUseDemoMode } from '@/lib/demo-data'
 import type { InventoryItem } from '@/types'
 
 interface OfferDraft {
@@ -27,6 +28,23 @@ export default function OfferGenerator({ onBroadcast }: OfferGeneratorProps) {
     setStep('generating')
     setError(null)
     try {
+      if (shouldUseDemoMode()) {
+        await new Promise(resolve => setTimeout(resolve, 600))
+        const inventory = getDemoSupplierInventory()
+        const expiresAt = new Date()
+        expiresAt.setDate(expiresAt.getDate() + 7)
+        setDraft({
+          title: 'Office restock bundle ready for next-day delivery',
+          content: 'We have strong availability across A4 paper, blue ballpoint pens, and toner cartridges this week. Customers can consolidate their office restock into a single delivery window and avoid separate supplier follow-ups.',
+          highlightedItems: inventory.slice(0, 3).map(item => item.itemName),
+          items: inventory,
+          expiresAt: expiresAt.toISOString(),
+          supplierName: getDemoProfile().companyName ?? 'Demo Supplier Co',
+        })
+        setStep('preview')
+        return
+      }
+
       const res = await fetch('/api/generate-offer', { method: 'POST' })
       const data = await res.json() as { draft?: OfferDraft; error?: string }
       if (!res.ok || !data.draft) throw new Error(data.error ?? 'Generation failed')
@@ -42,6 +60,13 @@ export default function OfferGenerator({ onBroadcast }: OfferGeneratorProps) {
     if (!draft) return
     setStep('broadcasting')
     try {
+      if (shouldUseDemoMode()) {
+        await new Promise(resolve => setTimeout(resolve, 450))
+        setStep('done')
+        onBroadcast()
+        return
+      }
+
       const res = await fetch('/api/generate-offer', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

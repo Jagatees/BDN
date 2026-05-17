@@ -13,6 +13,14 @@ import CustomerInventoryTable from '@/components/CustomerInventoryTable'
 import RestockCallButton from '@/components/RestockCallButton'
 import AddCustomerInventoryForm from '@/components/AddCustomerInventoryForm'
 import { mapReport, getStockLevel, STOCK_LEVEL_ORDER } from '@/lib/utils'
+import {
+  getDemoCustomerInventory,
+  getDemoOffers,
+  getDemoProfile,
+  getDemoReports,
+  getDemoUser,
+  shouldUseDemoMode,
+} from '@/lib/demo-data'
 import type { CallReport, SupplierOffer, Profile, CustomerInventoryItem, StockSummary } from '@/types'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
@@ -27,8 +35,14 @@ export default function CustomerPage() {
   const [showAddInventoryForm, setShowAddInventoryForm] = useState(false)
   const [filter, setFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const demoMode = shouldUseDemoMode()
 
   const fetchReports = useCallback(async () => {
+    if (shouldUseDemoMode()) {
+      setReports(getDemoReports())
+      return
+    }
+
     const supabase = createClient()
     const { data } = await supabase
       .from('call_reports')
@@ -39,6 +53,11 @@ export default function CustomerPage() {
   }, [])
 
   const fetchOffers = useCallback(async () => {
+    if (shouldUseDemoMode()) {
+      setOffers(getDemoOffers())
+      return
+    }
+
     const res = await fetch('/api/offers')
     if (res.ok) {
       const data = await res.json() as { offers: SupplierOffer[] }
@@ -47,6 +66,11 @@ export default function CustomerPage() {
   }, [])
 
   const fetchInventory = useCallback(async () => {
+    if (shouldUseDemoMode()) {
+      setInventory(getDemoCustomerInventory())
+      return
+    }
+
     const res = await fetch('/api/customer-inventory')
     if (res.ok) {
       const data = await res.json() as { items: CustomerInventoryItem[] }
@@ -55,6 +79,16 @@ export default function CustomerPage() {
   }, [])
 
   useEffect(() => {
+    if (shouldUseDemoMode()) {
+      setUser(getDemoUser())
+      setProfile(getDemoProfile())
+      setReports(getDemoReports())
+      setOffers(getDemoOffers())
+      setInventory(getDemoCustomerInventory())
+      setLoading(false)
+      return
+    }
+
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user: u } }) => {
       if (!u) { router.push('/auth/login'); return }
@@ -67,6 +101,11 @@ export default function CustomerPage() {
   }, [router, fetchReports, fetchOffers, fetchInventory])
 
   async function handleInventoryUpdate(id: string, patch: { currentQuantity?: number; restockThreshold?: number }) {
+    if (demoMode) {
+      setInventory(prev => prev.map(item => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item))
+      return
+    }
+
     await fetch('/api/customer-inventory', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -76,6 +115,11 @@ export default function CustomerPage() {
   }
 
   async function handleInventoryDelete(id: string) {
+    if (demoMode) {
+      setInventory(prev => prev.filter(i => i.id !== id))
+      return
+    }
+
     await fetch('/api/customer-inventory', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -155,6 +199,7 @@ export default function CustomerPage() {
             <AddCustomerInventoryForm
               onAdded={item => { setInventory(prev => [item, ...prev]); setShowAddInventoryForm(false) }}
               onClose={() => setShowAddInventoryForm(false)}
+              demoMode={demoMode}
             />
           )}
 

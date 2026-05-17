@@ -7,6 +7,7 @@ import { Send, Phone, FileText, Loader2, X, ChevronDown } from 'lucide-react'
 import CallStatusMachine from './CallStatusMachine'
 import OutcomeCard from './OutcomeCard'
 import SupplyMatchCard from './SupplyMatchCard'
+import { addDemoReport, shouldUseDemoMode } from '@/lib/demo-data'
 import type { CallStatus, JobSpec, CallOutcomeSummary, SupplyMatch, SupplierOption } from '@/types'
 
 interface FlowState {
@@ -87,6 +88,11 @@ export default function IntakeForm({ onCallComplete }: IntakeFormProps = {}) {
   const [flow, setFlow] = useState<FlowState>({ status: 'idle', message: '' })
 
   useEffect(() => {
+    if (shouldUseDemoMode()) {
+      setSuppliers([{ id: 'demo-supplier', companyName: 'BDN Supplier', phoneNumber: '+65 6123 4567' }])
+      return
+    }
+
     fetch('/api/suppliers')
       .then(r => r.ok ? r.json() : { suppliers: [] })
       .then((data: { suppliers: SupplierOption[] }) => setSuppliers(data.suppliers ?? []))
@@ -105,6 +111,60 @@ export default function IntakeForm({ onCallComplete }: IntakeFormProps = {}) {
     updateFlow({ status: 'planning', message: STATUS_MESSAGES.planning ?? '', error: undefined })
 
     try {
+      if (shouldUseDemoMode()) {
+        await delay(600)
+        const jobSpec: JobSpec = {
+          vendor: selectedSupplier?.companyName ?? 'BDN Supplier',
+          objective: request,
+          requiredQuestions: [
+            'Confirm availability and pricing.',
+            'Confirm earliest delivery date.',
+            'Ask for the best contact person for follow-up.',
+          ],
+          escalationGuardrails: [
+            'Escalate if the supplier cannot confirm pricing.',
+            'Escalate if delivery is later than this week.',
+          ],
+          echoMitigationPrompt: 'Ignore background echo and continue linearly.',
+        }
+
+        updateFlow({ status: 'queued', message: STATUS_MESSAGES.queued ?? '', jobSpec })
+        await delay(600)
+        updateFlow({ status: 'dialing', message: STATUS_MESSAGES.dialing ?? '' })
+        await delay(800)
+        updateFlow({ status: 'in-progress', message: 'Demo call connected, AI is speaking with the supplier...' })
+        await delay(900)
+        updateFlow({ status: 'extracting', message: STATUS_MESSAGES.extracting ?? '' })
+        await delay(600)
+
+        const report = addDemoReport(request, selectedSupplier?.id ?? 'demo-supplier')
+        const outcome: CallOutcomeSummary = {
+          vendorName: report.vendorName,
+          resolutionStatus: report.resolutionStatus,
+          paymentDate: report.paymentDate,
+          confidenceScore: report.confidenceScore,
+          nextStep: report.nextStep,
+        }
+
+        updateFlow({
+          status: 'done',
+          message: STATUS_MESSAGES.done ?? '',
+          outcome,
+          reportId: report.id,
+          supplyMatches: [
+            {
+              itemName: 'A4 Copy Paper (Ream)',
+              supplierName: 'BDN Supplier',
+              quantity: 240,
+              unitPrice: 8.9,
+              relevanceReason: 'Matches the demo request and is available for next-day delivery.',
+            },
+          ],
+        })
+        onCallComplete?.()
+        return
+      }
+
       // Step 1: Generate job spec
       const planRes = await fetch('/api/plan', {
         method: 'POST',
